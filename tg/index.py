@@ -5,16 +5,16 @@ from aiogram.types import Update, ErrorEvent, BufferedInputFile
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import ADMIN_CHAT_ID, ERRORS_THREAD_ID
-from tg.handlers.support import support_router
+from config import ADMIN_CHAT_ID, THREAD_ID, ADMIN_ID
+from tg.handlers.box import box_router
+from tg.handlers.messages import messages_router
+from tg.handlers.profile import profile_router
+from tg.handlers.survey import survey_router
 from tg.loader import bot, dp
 from db.db_config import get_db
 from db.models import User
 from tg.handlers.common import common_router
-from tg.handlers.info import info_router
-from tg.handlers.neuro import neuro_router
 from tg.handlers.register import register_router
-from tg.handlers.subscription import subscription_router
 from tg.middlewares import LoggingMiddleware
 
 # FastAPI-роутер для приёма входящих от телеграм запросов
@@ -26,10 +26,10 @@ dp.callback_query.middleware(LoggingMiddleware())
 # Подключения роутов бота к диспатчеру
 dp.include_router(common_router)
 dp.include_router(register_router)
-dp.include_router(subscription_router)
-dp.include_router(info_router)
-dp.include_router(support_router)
-dp.include_router(neuro_router)
+dp.include_router(box_router)
+dp.include_router(survey_router)
+dp.include_router(profile_router)
+dp.include_router(messages_router)
 
 
 @bot_router.post("/webhook")
@@ -73,10 +73,9 @@ async def error_handler(exception: ErrorEvent, state: FSMContext):
         with open('error.txt', 'rb') as f:
             # Создаем объект InputFile для передачи в send_document()
             await bot.send_document(
-                chat_id=ADMIN_CHAT_ID,
+                chat_id=ADMIN_ID,
                 document=BufferedInputFile(f.read(), "error.txt"),
                 caption="Мне очень стыдно, но произошла ошибка, подробности в файле.",
-                message_thread_id=ERRORS_THREAD_ID
             )
         await bot.send_message(chat_id=chat_id,
                                message_thread_id=message_thread_id,

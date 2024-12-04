@@ -1,13 +1,16 @@
 import copy
 from logging.config import fileConfig
-
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
+from config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
+load_dotenv()
 config = context.config
 
 # Interpret the config file for Python logging.
@@ -22,8 +25,14 @@ from db import models
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+config = context.config
+config.set_main_option(
+    "sqlalchemy.url",
+    f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+)
+
 target_metadata = Base.metadata
-models_copy = copy.deepcopy(models)
+models_copy = models
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
