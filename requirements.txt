@@ -2,7 +2,7 @@ fastapi~=0.112.0
 alembic~=1.13.2
 sqlalchemy~=2.0.31
 python-dotenv~=1.0.1
-starlette~=0.37.2
+starlette~=0.40.0
 greenlet
 asyncpg
 psycopg2-binary
@@ -14,4 +14,4 @@ aioredis
 aiogram~=3.10.0
 celery~=5.4.0
 requests~=2.32.3
-aiohttp~=3.9.5
+aiohttp~=3.10.11
