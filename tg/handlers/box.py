@@ -6,7 +6,7 @@ import requests
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Box, User, UserRoom, Gift
@@ -151,7 +151,7 @@ async def select_box_root(call: types.CallbackQuery, db: AsyncSession, user: Use
             ])
         else:
             kb.append([
-                types.InlineKeyboardButton(text="🎁Добавить подарки", callback_data=f"fill_gifts:{box.id}")
+                types.InlineKeyboardButton(text="🎁Список подарков", callback_data=f"list_gifts:{box.id}")
             ])
     else:
         box_text += ("\n\n✅Вам назначен подопечный для вручения подарка. Вы можете ознакомиться с его пожеланиями или "
@@ -181,6 +181,10 @@ async def select_box_root(call: types.CallbackQuery, db: AsyncSession, user: Use
             kb.append([
                 types.InlineKeyboardButton(text="🎲Провести жеребьёвку", callback_data=f"shuffle_box:{box.id}")
             ])
+
+        kb.append([
+            types.InlineKeyboardButton(text="🗑️Удалить коробку", callback_data=f'delete_box:{box.id}')
+        ])
 
     kb.append([
         types.InlineKeyboardButton(text="🔙Назад в список коробок", callback_data='my_boxes')
@@ -364,3 +368,74 @@ async def exit_gift_filling(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(
         "🚪 Вы завершили добавление подарков. Вы можете вернуться к коробке из меню по команде /start."
     )
+
+
+@box_router.callback_query(F.data.startswith("list_gifts:"))
+async def list_gifts(call: types.CallbackQuery, db: AsyncSession, user: User):
+    box_id = int(call.data.split(':')[1])
+    stmt = await db.execute(select(Gift).filter_by(box_id=box_id, user_id=call.from_user.id))
+    gifts = stmt.scalars().all()
+    kb = []
+    for number, gift in enumerate(gifts):
+        kb.append([
+            types.InlineKeyboardButton(text=f"{number+1}. {gift.gift_url}", url=gift.gift_url),
+            types.InlineKeyboardButton(text=f"🗑️", callback_data=f"delete_gift:{gift.id}"),
+        ])
+    kb.append([
+        types.InlineKeyboardButton(text="🎁Добавить подарки", callback_data=f"fill_gifts:{box_id}")
+    ])
+    kb.append([
+        types.InlineKeyboardButton(text="🔙Вернуться в коробку", callback_data=f"select_box:{box_id}")
+    ])
+
+    await call.message.edit_text(text="✏️В этом меню можно удалить ненужные подарки или добавить новые:",
+                                 reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
+
+
+@box_router.callback_query(F.data.startswith("delete_gift:"))
+async def delete_gift(call: types.CallbackQuery, db: AsyncSession):
+    gift_id = int(call.data.split(':')[1])
+    stmt = await db.execute(select(Gift).filter_by(id=gift_id))
+    gift = stmt.scalars().first()
+    box_id = gift.box_id
+    if gift.user_id == call.from_user.id:
+        await db.execute(delete(Gift).filter_by(id=gift.id))
+        await db.commit()
+        kb = [[
+            types.InlineKeyboardButton(text="🔙Назад в список подарков", callback_data=f"list_gifts:{box_id}")
+        ]]
+
+        await call.message.edit_text(text=f"✅Подарок успешно удалён!",
+                                     reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
+
+@box_router.callback_query(F.data.startswith("delete_box:"))
+async def delete_box_root(call: types.CallbackQuery, db: AsyncSession):
+    box_id = int(call.data.split(':')[1])
+    stmt = await db.execute(select(Box).filter_by(id=box_id))
+    box = stmt.scalars().first()
+    if not box.admin_id == call.from_user.id:
+        return await call.answer(f"⛔️Вы не имеете доступа к удалению этой коробки!")
+    kb = [
+        [types.InlineKeyboardButton(text="Да, я уверен(а)", callback_data=f"delete_box_confirm:{box_id}")],
+        [types.InlineKeyboardButton(text="Нет, отменить!", callback_data=f"select_box:{box_id}")],
+        [types.InlineKeyboardButton(text="О боже, нет!", callback_data=f"select_box:{box_id}")],
+    ]
+    random.shuffle(kb)
+    await call.message.edit_text(text=f"⁉️Вы подтверждаете удаление коробки <b>{box.name}</b>?",
+                                 reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
+
+
+@box_router.callback_query(F.data.startswith("delete_box_confirm:"))
+async def delete_box_confirm(call: types.CallbackQuery, db: AsyncSession):
+    box_id = int(call.data.split(':')[1])
+    await db.execute(delete(UserRoom).filter_by(box_id=box_id))
+    await db.execute(delete(Gift).filter_by(box_id=box_id))
+    await db.execute(delete(Box).filter_by(id=box_id))
+    await db.commit()
+    kb = [[
+        types.InlineKeyboardButton(text="🔙Назад в меню", callback_data="main_menu")
+    ]]
+
+    await call.message.edit_text(text=f"✅Коробка успешно удалена!",
+                                 reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
+
