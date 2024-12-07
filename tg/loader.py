@@ -7,5 +7,5 @@ from config import BOT_TOKEN, REDIS_HOST, REDIS_PORT, REDIS_DB
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 storage = RedisStorage.from_url(
-    f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}", state_ttl=1200)
+    f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 dp = Dispatcher(bot=bot, storage=storage)
